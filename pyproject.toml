@@ -1,0 +1,28 @@
+[project]
+name = "summarize-cli"
+version = "0.1.0"
+description = "A CLI for generating summaries of journal articles using the GPT-4o mini model"
+readme = "README.md"
+authors = [{ name = "Fahmi Adi Nugraha", email = "fnugraha@gmail.com" }]
+requires-python = ">=3.10"
+dependencies = [
+    "click>=8.1.8",
+    "langchain>=0.3.24",
+    "langchain-community>=0.3.22",
+    "langchain-openai>=0.3.14",
+    "langchain-pymupdf4llm>=0.3.1",
+    "pymupdf>=1.25.5",
+    "python-dotenv>=1.1.0",
+    "tqdm>=4.67.1",
+]
+
+[project.scripts]
+# summarize-cli = "summarize_cli:main"
+summarize-cli = "summarize_cli.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["ipython>=8.35.0", "pytest>=8.3.5"]
