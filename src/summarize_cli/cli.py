@@ -58,7 +58,7 @@ def check_api_key_var() -> None:
     if "OPENAI_API_KEY" not in os.environ:
         click.echo(
             "Missing API key. Make sure the appropriate environment variable "
-            "is set or than a .env file containing the variable is present "
+            "is set or that a .env file containing the variable is present "
             "in the current directory."
         )
         sys.exit(1)
