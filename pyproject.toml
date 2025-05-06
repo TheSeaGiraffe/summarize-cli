@@ -17,7 +17,6 @@ dependencies = [
 ]
 
 [project.scripts]
-# summarize-cli = "summarize_cli:main"
 summarize-cli = "summarize_cli.cli:main"
 
 [build-system]
@@ -26,3 +25,9 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = ["ipython>=8.35.0", "pytest>=8.3.5"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+pythonpath = "src"
+filterwarnings = ["ignore::DeprecationWarning"]

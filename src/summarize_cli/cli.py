@@ -5,7 +5,11 @@ from pathlib import Path
 import click
 from dotenv import find_dotenv, load_dotenv
 
-from summarize_cli.summarize import gen_stuff_summary_chain_with_prompt, summarize_pdfs
+from summarize_cli.summarize import (
+    SUMMARY_PROMPTS,
+    gen_stuff_summary_chain_with_prompt,
+    summarize_pdfs,
+)
 
 
 @click.command()
@@ -15,6 +19,13 @@ from summarize_cli.summarize import gen_stuff_summary_chain_with_prompt, summari
     nargs=-1,
     required=True,
     type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=Path),
+)
+@click.option(
+    "--summary-type",
+    "-s",
+    type=click.Choice(["concise", "bullet_point", "detailed"], case_sensitive=False),
+    default="concise",
+    help="The type of summary that will be generated",
 )
 @click.option(
     "--output-dir",
@@ -30,7 +41,7 @@ from summarize_cli.summarize import gen_stuff_summary_chain_with_prompt, summari
     show_default=True,
     help="Suffix to use for the output files.",
 )
-def main(files: list[Path], output_dir: Path, suffix: str) -> None:
+def main(files: list[Path], summary_type: str, output_dir: Path, suffix: str) -> None:
     """
     Takes in one or more journal article FILES as input and produces a summary for each
     one using an LLM. Currently, only the GPT-4o mini model is supported.
@@ -42,7 +53,8 @@ def main(files: list[Path], output_dir: Path, suffix: str) -> None:
     # Hardcode these for now
     llm_model = "gpt-4o-mini"
     model_provider = "openai"
-    chain = gen_stuff_summary_chain_with_prompt(llm_model, model_provider)
+    prompt_text = SUMMARY_PROMPTS[summary_type.lower()]
+    chain = gen_stuff_summary_chain_with_prompt(llm_model, model_provider, prompt_text)
 
     # Loop through the files and create summaries for them
     summarize_pdfs(chain, files, output_dir, suffix)
@@ -50,9 +62,11 @@ def main(files: list[Path], output_dir: Path, suffix: str) -> None:
 
 def check_api_key_var() -> None:
     # Load .env file if one is present
-    env_file = find_dotenv()
-    if env_file:
-        _ = load_dotenv(env_file)
+    debug = os.getenv("SUMMARIZE_CLI_DEBUG", "0")
+    if debug != "1":
+        env_file = find_dotenv()
+        if env_file:
+            _ = load_dotenv(env_file)
 
     # Check for API key. Don't proceed if one isn't found
     if "OPENAI_API_KEY" not in os.environ:
