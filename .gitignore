@@ -10,7 +10,7 @@ wheels/
 .venv
 
 # Directories
-pdfs/
+example_pdfs/
 
 # Summary files
 **/*.txt

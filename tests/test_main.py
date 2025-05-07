@@ -1,11 +1,13 @@
+import re
 from pathlib import Path
 from typing import Any
 
 import pytest
+from click.testing import CliRunner
 from langchain_core.runnables import Runnable
 
-from summarize_cli.cli import check_api_key_var
-from summarize_cli.summarize import summarize_pdfs
+from summarize_cli.cli import check_api_key_var, main
+from summarize_cli.summarize import get_pdf_text, summarize_pdfs
 
 
 class TestMainGeneral:
@@ -68,15 +70,37 @@ class TestMainGeneral:
         self.fake_summarize_pdfs(fake_summarization_chain, pdf_files, tmp_path, suffix)
 
         for i, f in enumerate(sorted(tmp_path.iterdir())):
+            pdf_name = pdf_files[i].stem
             if suffix == "":
-                pdf_name = pdf_files[i].stem
                 assert pdf_name == f.stem
             else:
-                assert suffix in f.stem
+                assert f"{pdf_name}-{suffix}" == f.stem
 
 
 class TestMainSummarization:
     """Tests that the summarization functionality works as expected."""
 
-    def test_always_pass(self):
-        assert True
+    def get_word_count(self, doc: str) -> int:
+        return len(re.split(r"\s+", doc))
+
+    # Test the default summary type for now
+    def test_generate_summaries_concise(self, tmp_path, pdf_files):
+        """Test summarization using the default 'concise' summary type"""
+        runner = CliRunner()
+        invoke_opts = ["--output-dir", str(tmp_path)]
+        # We test only the first 3 pdf files to save time
+        invoke_opts += [str(f) for f in pdf_files[:3]]
+        result = runner.invoke(main, invoke_opts)
+
+        assert result.exit_code == 0
+
+        for summary_file, pdf_file in zip(sorted(tmp_path.iterdir()), pdf_files[:3]):
+            # Get pdf text
+            doc = get_pdf_text(pdf_file, single_mode=True, page_delim="")
+            pdf_text = doc[0].page_content
+
+            # Get summary text
+            with open(summary_file) as summary:
+                summary_text = summary.read()
+
+            assert self.get_word_count(summary_text) < self.get_word_count(pdf_text)
