@@ -1,7 +1,9 @@
+import asyncio
 import os
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chat_models import init_chat_model
 from langchain_core.documents import Document
@@ -40,8 +42,6 @@ def get_pdf_text(
     page_delim: str | None
         The delimiter that will be used to separate pages if "single_mode" is specified.
         If None, then a simple bar of 5 hyphens is used. Default: None
-    debug: bool
-        Enables debug mode which
 
     Returns
     -------
@@ -70,6 +70,43 @@ def get_pdf_text(
         doc = loader.load()
 
     return doc
+
+
+async def get_pdf_text_async(
+    pdf_file: str | Path,
+    single_mode: bool = False,
+    page_delim: str | None = None,
+) -> list[Document]:
+    """Extract text from a pdf file asynchronously.
+
+    Text is extracted using the 3rd party tool PyMuPDF4LLMLoader.
+
+    Parameters
+    ----------
+    pdf_file: str | Path
+        Path to pdf file
+    single_mode: bool
+        Whether the text should be extracted as a single document or split up into
+        multiple documents. Default: False
+    page_delim: str | None
+        The delimiter that will be used to separate pages if "single_mode" is specified.
+        If None, then a simple bar of 5 hyphens is used. Default: None
+
+    Returns
+    -------
+    list[Document]
+        A list of LangChain Document objects.
+    """
+    if single_mode:
+        default_delim = "\n-----\n\n"
+        if page_delim is None:
+            page_delim = default_delim
+
+        loader = PyMuPDF4LLMLoader(pdf_file, mode="single", pages_delimiter=page_delim)
+    else:
+        loader = PyMuPDF4LLMLoader(pdf_file)
+
+    return await loader.aload()
 
 
 def gen_stuff_summary_chain_with_prompt(
@@ -145,3 +182,64 @@ def summarize_pdfs(
         output_filename += ".txt"
         with open(output_dir / output_filename, "w") as out:
             _ = out.write(summary_text)
+
+
+async def summarize_pdfs_async(
+    stuff_documents_chain: Runnable[dict[str, Any], Any],
+    pdf_files: list[Path],
+    output_dir: Path,
+    output_file_suffix: str,
+) -> None:
+    """Summarize a batch of pdf files asynchronously
+
+    Summaries are generated using the provided summarization chain and are written to a
+    text file in the specified `output_dir`. The names of the summary files should have
+    the specified `output_file_suffix` attached to them.
+
+    Parameters
+    ----------
+    stuff_documents_chain: Runnable[dict[str, Any], Any]
+        The text summarization chain that will be used to generate the summaries
+    pdf_files: list[Path]
+        A list of pdf files that will be used to generate summaries
+    output_dir: Path
+        The directory in which the generated summaries will be stored
+    output_file_suffix: str
+        The suffix that will be added to the names of all of the summary files
+    """
+    TOOLS.mupdf_display_errors(False)  # Ignore errors from PyMuPDF
+
+    # Do this in three steps, all of which are async operations:
+    # - Get all pdf texts
+    # - Generate pdf summaries
+    # - Write summaries to file
+
+    # Get pdfs
+    print("Getting pdf texts...")
+    get_pdf_tasks = []
+    for pdf_file in pdf_files:
+        get_pdf_tasks.append(
+            get_pdf_text_async(pdf_file, single_mode=True, page_delim="")
+        )
+    docs = await asyncio.gather(*get_pdf_tasks)
+
+    # Generate summaries
+    print("Generating summaries...")
+    summary_tasks = []
+    for doc in docs:
+        summary_tasks.append(stuff_documents_chain.ainvoke({"context": doc}))
+    summaries = await asyncio.gather(*summary_tasks)
+
+    # Write summaries to file
+    print("Writing summaries to individual files...")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    for pdf_file, summary in zip(pdf_files, summaries):
+        output_filename = f"{pdf_file.stem}"
+        if output_file_suffix:
+            output_filename += f"-{output_file_suffix}"
+        output_filename += ".txt"
+
+        async with aiofiles.open(output_dir / output_filename, "w") as out:
+            await out.write(summary)
+
+    print("Done.")

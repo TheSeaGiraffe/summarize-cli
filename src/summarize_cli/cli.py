@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 from pathlib import Path
@@ -9,6 +10,7 @@ from summarize_cli.summarize import (
     SUMMARY_PROMPTS,
     gen_stuff_summary_chain_with_prompt,
     summarize_pdfs,
+    summarize_pdfs_async,
 )
 
 
@@ -41,7 +43,19 @@ from summarize_cli.summarize import (
     show_default=True,
     help="Suffix to use for the output files.",
 )
-def main(files: list[Path], summary_type: str, output_dir: Path, suffix: str) -> None:
+@click.option(
+    "--asynchronous",
+    is_flag=True,
+    default=False,
+    help="Enable asynchronous operations",
+)
+def main(
+    files: list[Path],
+    summary_type: str,
+    output_dir: Path,
+    suffix: str,
+    asynchronous: bool,
+) -> None:
     """
     Takes in one or more journal article FILES as input and produces a summary for each
     one using an LLM. Currently, only the GPT-4o mini model is supported.
@@ -57,7 +71,10 @@ def main(files: list[Path], summary_type: str, output_dir: Path, suffix: str) ->
     chain = gen_stuff_summary_chain_with_prompt(llm_model, model_provider, prompt_text)
 
     # Loop through the files and create summaries for them
-    summarize_pdfs(chain, files, output_dir, suffix)
+    if asynchronous:
+        asyncio.run(summarize_pdfs_async(chain, files, output_dir, suffix))
+    else:
+        summarize_pdfs(chain, files, output_dir, suffix)
 
 
 def check_api_key_var() -> None:

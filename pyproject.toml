@@ -6,6 +6,7 @@ readme = "README.md"
 authors = [{ name = "Fahmi Adi Nugraha", email = "fnugraha@gmail.com" }]
 requires-python = ">=3.10"
 dependencies = [
+    "aiofiles>=24.1.0",
     "click>=8.1.8",
     "langchain>=0.3.24",
     "langchain-community>=0.3.22",
