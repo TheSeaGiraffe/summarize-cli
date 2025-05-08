@@ -1,3 +1,4 @@
+import asyncio
 import os
 from pathlib import Path
 from typing import Any
@@ -48,9 +49,9 @@ def get_pdf_text(
     list[Document]
         A list of LangChain Document objects.
     """
-    debug = os.getenv("SUMMARIZE_CLI_DEBUG", "0")
+    test = os.getenv("SUMMARIZE_CLI_TEST", "0")
     doc: list[Document]
-    if debug == "1":
+    if test == "1":
         doc = [
             Document(
                 page_content="This is a fake document", metadata={"title": "fake_doc"}
@@ -97,16 +98,30 @@ async def get_pdf_text_async(
     list[Document]
         A list of LangChain Document objects.
     """
-    if single_mode:
-        default_delim = "\n-----\n\n"
-        if page_delim is None:
-            page_delim = default_delim
-
-        loader = PyMuPDF4LLMLoader(pdf_file, mode="single", pages_delimiter=page_delim)
+    test = os.getenv("SUMMARIZE_CLI_TEST", "0")
+    doc: list[Document]
+    if test == "1":
+        await asyncio.sleep(1)
+        doc = [
+            Document(
+                page_content="This is a fake document", metadata={"title": "fake_doc"}
+            )
+        ]
     else:
-        loader = PyMuPDF4LLMLoader(pdf_file)
+        if single_mode:
+            default_delim = "\n-----\n\n"
+            if page_delim is None:
+                page_delim = default_delim
 
-    return await loader.aload()
+            loader = PyMuPDF4LLMLoader(
+                pdf_file, mode="single", pages_delimiter=page_delim
+            )
+        else:
+            loader = PyMuPDF4LLMLoader(pdf_file)
+
+        doc = await loader.aload()
+
+    return doc
 
 
 def gen_stuff_summary_chain_with_prompt(

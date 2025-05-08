@@ -79,8 +79,8 @@ def main(
 
 def check_api_key_var() -> None:
     # Load .env file if one is present
-    debug = os.getenv("SUMMARIZE_CLI_DEBUG", "0")
-    if debug != "1":
+    test = os.getenv("SUMMARIZE_CLI_TEST", "0")
+    if test != "1":
         env_file = find_dotenv()
         if env_file:
             _ = load_dotenv(env_file)

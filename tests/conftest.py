@@ -8,9 +8,9 @@ from langchain_core.prompts import ChatPromptTemplate
 
 @pytest.fixture()
 def debug_env_var(monkeypatch):
-    monkeypatch.setenv("SUMMARIZE_CLI_DEBUG", "1")
+    monkeypatch.setenv("SUMMARIZE_CLI_TEST", "1")
     yield
-    monkeypatch.delenv("SUMMARIZE_CLI_DEBUG")
+    monkeypatch.delenv("SUMMARIZE_CLI_TEST")
 
 
 @pytest.fixture(scope="function")
