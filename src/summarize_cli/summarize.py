@@ -1,4 +1,3 @@
-import asyncio
 import os
 from pathlib import Path
 from typing import Any
@@ -12,6 +11,7 @@ from langchain_core.runnables import Runnable
 from langchain_pymupdf4llm import PyMuPDF4LLMLoader
 from pymupdf import TOOLS
 from tqdm import tqdm
+from tqdm.asyncio import tqdm as atqdm
 
 __all__ = ["get_pdf_text", "gen_stuff_summary_chain_with_prompt", "summarize_pdfs"]
 
@@ -209,11 +209,6 @@ async def summarize_pdfs_async(
     """
     TOOLS.mupdf_display_errors(False)  # Ignore errors from PyMuPDF
 
-    # Do this in three steps, all of which are async operations:
-    # - Get all pdf texts
-    # - Generate pdf summaries
-    # - Write summaries to file
-
     # Get pdfs
     print("Getting pdf texts...")
     get_pdf_tasks = []
@@ -221,19 +216,20 @@ async def summarize_pdfs_async(
         get_pdf_tasks.append(
             get_pdf_text_async(pdf_file, single_mode=True, page_delim="")
         )
-    docs = await asyncio.gather(*get_pdf_tasks)
+    docs = await atqdm.gather(*get_pdf_tasks)
 
     # Generate summaries
-    print("Generating summaries...")
+    print("\nGenerating summaries...")
     summary_tasks = []
     for doc in docs:
         summary_tasks.append(stuff_documents_chain.ainvoke({"context": doc}))
-    summaries = await asyncio.gather(*summary_tasks)
+    summaries = await atqdm.gather(*summary_tasks)
 
     # Write summaries to file
-    print("Writing summaries to individual files...")
+    print("\nWriting summaries to individual files...")
     output_dir.mkdir(parents=True, exist_ok=True)
-    for pdf_file, summary in zip(pdf_files, summaries):
+    num_files = len(pdf_files)
+    for pdf_file, summary in tqdm(zip(pdf_files, summaries), total=num_files):
         output_filename = f"{pdf_file.stem}"
         if output_file_suffix:
             output_filename += f"-{output_file_suffix}"
