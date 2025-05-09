@@ -16,6 +16,7 @@ pdf_word_counts/
 
 # Summary files
 **/*.txt
+**/*.md
 
 # Env var files
 .env

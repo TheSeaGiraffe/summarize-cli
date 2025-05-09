@@ -1,13 +1,11 @@
 import re
 from pathlib import Path
-from typing import Any
 
 import pytest
 from click.testing import CliRunner
-from langchain_core.runnables import Runnable
 
 from summarize_cli.cli import check_api_key_var, main
-from summarize_cli.summarize import get_pdf_text, summarize_pdfs
+from summarize_cli.summarize import summarize_pdfs_async
 
 
 class TestMainGeneral:
@@ -24,49 +22,50 @@ class TestMainGeneral:
         assert cap_err.value.code == 1
         assert "Missing API key" in output
 
-    # Do I even need to bother with types here?
-    def fake_summarize_pdfs(
-        self,
-        chain: Runnable[dict[str, Any], Any],
-        pdfs: list[Path],
-        output_path: Path,
-        suffix: str = "summary",
-    ) -> None:
-        summarize_pdfs(chain, pdfs, output_path, suffix)
-
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "output_dir", [Path("."), Path("test_d1"), Path("test_d3/one/two")]
     )
-    def test_output_dir(
+    async def test_output_dir(
         self, tmp_path, output_dir, pdf_files, fake_summarization_chain, debug_env_var
     ):
         """Tests that the output dir gets created"""
 
         output_path = tmp_path / output_dir
-        self.fake_summarize_pdfs(fake_summarization_chain, pdf_files, output_path)
+        suffix = "summary"
+        await summarize_pdfs_async(
+            fake_summarization_chain, pdf_files, output_path, suffix
+        )
 
         assert output_path.exists()
 
+    @pytest.mark.asyncio
     @pytest.mark.parametrize("num_files", [1, 3, 5])
-    def test_output_files(
+    async def test_output_files(
         self, num_files, tmp_path, pdf_files, fake_summarization_chain, debug_env_var
     ):
         """Tests that the number of summary files matches the number of pdf files"""
 
         pdf_slice = pdf_files[num_files] if num_files == 0 else pdf_files[:num_files]
-        self.fake_summarize_pdfs(fake_summarization_chain, pdf_slice, tmp_path)
+        suffix = "summary"
+        await summarize_pdfs_async(
+            fake_summarization_chain, pdf_slice, tmp_path, suffix
+        )
 
         assert len(list(tmp_path.iterdir())) == num_files
 
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         "suffix", ["poodonkis", "concise-summary", "fake_summary", "funky@summary", ""]
     )
-    def test_output_file_suffix(
+    async def test_output_file_suffix(
         self, suffix, tmp_path, pdf_files, fake_summarization_chain, debug_env_var
     ):
         """Test that the output files have the specified suffixes"""
 
-        self.fake_summarize_pdfs(fake_summarization_chain, pdf_files, tmp_path, suffix)
+        await summarize_pdfs_async(
+            fake_summarization_chain, pdf_files, tmp_path, suffix
+        )
 
         for i, f in enumerate(sorted(tmp_path.iterdir())):
             pdf_name = pdf_files[i].stem
@@ -82,24 +81,23 @@ class TestMainSummarization:
     def get_word_count(self, doc: str) -> int:
         return len(re.split(r"\s+", doc))
 
-    # Test the default summary type for now
-    def test_generate_summaries_concise(self, tmp_path, pdf_files):
+    def test_generate_summaries_concise(
+        self, tmp_path, pdf_files, pdf_file_word_counts
+    ):
         """Test summarization using the default 'concise' summary type"""
         runner = CliRunner()
         invoke_opts = ["--output-dir", str(tmp_path)]
-        # We test only the first 3 pdf files to save time
-        invoke_opts += [str(f) for f in pdf_files[:3]]
+        # Use the first 3 pdfs to save time
+        test_pdfs = pdf_files[:3]
+        invoke_opts += [str(f) for f in test_pdfs]
         result = runner.invoke(main, invoke_opts)
 
         assert result.exit_code == 0
 
-        for summary_file, pdf_file in zip(sorted(tmp_path.iterdir()), pdf_files[:3]):
-            # Get pdf text
-            doc = get_pdf_text(pdf_file, single_mode=True, page_delim="")
-            pdf_text = doc[0].page_content
-
-            # Get summary text
+        for summary_file in sorted(tmp_path.iterdir()):
             with open(summary_file) as summary:
-                summary_text = summary.read()
+                summary_word_count = self.get_word_count(summary.read())
 
-            assert self.get_word_count(summary_text) < self.get_word_count(pdf_text)
+            pdf_file_key = re.sub(r"-summary$", "", summary_file.stem)
+
+            assert summary_word_count < pdf_file_word_counts[pdf_file_key]
