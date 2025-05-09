@@ -11,6 +11,8 @@ wheels/
 
 # Directories
 example_pdfs/
+scripts/
+pdf_word_counts/
 
 # Summary files
 **/*.txt

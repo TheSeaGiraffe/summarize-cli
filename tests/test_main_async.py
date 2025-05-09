@@ -5,10 +5,7 @@ import pytest
 from click.testing import CliRunner
 
 from summarize_cli.cli import check_api_key_var, main
-from summarize_cli.summarize import (
-    get_pdf_text,
-    summarize_pdfs_async,
-)
+from summarize_cli.summarize import summarize_pdfs_async
 
 
 class TestMainAsyncGeneral:
@@ -84,25 +81,24 @@ class TestMainAsyncSummarization:
     def get_word_count(self, doc: str) -> int:
         return len(re.split(r"\s+", doc))
 
-    # Need to figure out how to use async functions here in conjunction with the runner
-    # call to the main function.
-    def test_generate_summaries_concise(self, tmp_path, pdf_files):
+    def test_generate_summaries_concise(
+        self, tmp_path, pdf_files, pdf_file_word_counts
+    ):
         """Test summarization using the default 'concise' summary type"""
         runner = CliRunner()
         invoke_opts = ["--asynchronous", "--output-dir", str(tmp_path)]
-        # We test only the first 3 pdf files to save time
-        invoke_opts += [str(f) for f in pdf_files[:3]]
+        # Use the first 3 pdfs to save time
+        test_pdfs = pdf_files[:3]
+        invoke_opts += [str(f) for f in test_pdfs]
+        # invoke_opts += [str(f) for f in pdf_files]
         result = runner.invoke(main, invoke_opts)
 
         assert result.exit_code == 0
 
-        for summary_file, pdf_file in zip(sorted(tmp_path.iterdir()), pdf_files[:3]):
-            # Get pdf text
-            doc = get_pdf_text(pdf_file, single_mode=True, page_delim="")
-            pdf_text = doc[0].page_content
-
-            # Get summary text
+        for summary_file in sorted(tmp_path.iterdir()):
             with open(summary_file) as summary:
-                summary_text = summary.read()
+                summary_word_count = self.get_word_count(summary.read())
 
-            assert self.get_word_count(summary_text) < self.get_word_count(pdf_text)
+            pdf_file_key = re.sub(r"-summary$", "", summary_file.stem)
+
+            assert summary_word_count < pdf_file_word_counts[pdf_file_key]
